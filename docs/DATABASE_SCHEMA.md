@@ -200,7 +200,7 @@ cancelled
 Store actual images in local device/app storage.
 
 ```text
-worky-kitchen/
+hci-we-173/
 ├── profiles/
 └── meals/
 ```
@@ -208,5 +208,5 @@ worky-kitchen/
 SQLite stores only paths such as:
 
 ```text
-.../worky-kitchen/meals/meal_12.jpg
+.../hci-we-173/meals/meal_12.jpg
 ```

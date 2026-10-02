@@ -1,5 +1,5 @@
 {
-  "name": "worky-kitchen",
+  "name": "hci-we-173-frontend",
   "main": "expo-router/entry",
   "version": "1.0.0",
   "dependencies": {

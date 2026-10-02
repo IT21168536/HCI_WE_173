@@ -2,8 +2,19 @@
 
 The structure separates the project by **Customer, Home Cook and Delivery Rider**, while shared infrastructure remains centralized.
 
+Repository-level folders:
+
 ```text
-worky-kitchen/
+HCI_WE_173/
+├── frontend/   # Expo React Native mobile app; contains app/, src/, assets/
+├── backend/    # Future backend/API location; no separate server in the MVP
+└── docs/       # Project documentation
+```
+
+Inside `frontend/`, the mobile app keeps this role-based structure:
+
+```text
+frontend/
 │
 ├── app/
 │   ├── _layout.tsx

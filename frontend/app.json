@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "worky-kitchen",
-    "slug": "worky-kitchen",
+    "name": "HCI WE 173",
+    "slug": "hci-we-173",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/worky-icon-padded.png",
-    "scheme": "workykitchen",
+    "scheme": "hciwe173",
     "userInterfaceStyle": "automatic",
     "ios": {
       "icon": "./assets/expo.icon"
