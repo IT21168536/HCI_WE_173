@@ -1,13 +1,52 @@
-import { ScrollView } from 'react-native';
-import { ScreenHeader } from '@/shared/components/ScreenHeader';
-import { EmptyState } from '@/shared/components/EmptyState';
-import { screenStyles } from '@/shared/theme/screen';
+import { Alert } from 'react-native';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useCurrentUser } from '@/core/auth/SessionContext';
+import { MealForm } from '@/features/cook/components/MealForm';
+import { getMeal, updateMeal } from '@/features/cook/services/cook.service';
+import { ErrorView, LoadingView } from '@/shared/components/LoadingView';
+import { Screen } from '@/shared/components/Screen';
+import { useFocusData } from '@/shared/hooks/useFocusData';
 
 export default function EditMealScreen() {
+  const user = useCurrentUser();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const mealId = Number(id);
+
+  const { data: meal, loading, error, reload } = useFocusData(
+    async () => {
+      const found = await getMeal(mealId);
+      if (!found || found.cookId !== user.id || found.deletedAt) {
+        throw new Error('This meal is not on your menu.');
+      }
+      return found;
+    },
+    null,
+    [mealId, user.id],
+  );
+
+  if (loading) {
+    return <LoadingView message="Loading meal..." fill />;
+  }
+  if (error || !meal) {
+    return (
+      <Screen title="Edit Meal" back variant="brand">
+        <ErrorView message={error ?? 'Meal not found.'} onRetry={() => reload()} />
+      </Screen>
+    );
+  }
+
   return (
-    <ScrollView style={screenStyles.container} contentContainerStyle={screenStyles.content}>
-      <ScreenHeader title="Edit meal" subtitle="Update meal details, availability, portions, and photo." />
-      <EmptyState title="Edit form ready" message="Connect this screen to the cook meal service." />
-    </ScrollView>
+    <MealForm
+      key={meal.id}
+      title="Edit Meal"
+      initial={meal}
+      submitLabel="Save changes"
+      onSubmit={async (input) => {
+        await updateMeal(meal.id, input);
+        Alert.alert('Meal updated', `${input.name} has been saved.`);
+        router.back();
+      }}
+      onDelete={() => router.push({ pathname: '/(cook)/meal/[id]/delete', params: { id: String(meal.id) } })}
+    />
   );
 }

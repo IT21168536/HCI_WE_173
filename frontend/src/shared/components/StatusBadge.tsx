@@ -1,44 +1,28 @@
-import { StyleSheet, Text, View } from 'react-native';
-import type { OrderStatus } from '@/shared/types/Order';
-import { colors } from '@/shared/theme/colors';
-import { radius } from '@/shared/theme/radius';
-import { spacing } from '@/shared/theme/spacing';
-import { typography } from '@/shared/theme/typography';
+import type { Order, OrderStatus } from '@/shared/types/Order';
+import { STATUS_LABELS } from '@/shared/types/Order';
+import { Badge, type BadgeTone } from './ui';
 
-const statusColor: Record<OrderStatus, string> = {
-  requested: colors.info,
-  accepted: colors.warning,
-  preparing: colors.warning,
-  ready: colors.success,
-  picked_up: colors.info,
-  on_the_way: colors.info,
-  delivered: colors.success,
-  cancelled: colors.danger,
+const statusTone: Record<OrderStatus, BadgeTone> = {
+  requested: 'brand',
+  accepted: 'info',
+  preparing: 'warning',
+  ready: 'success',
+  picked_up: 'info',
+  on_the_way: 'info',
+  delivered: 'success',
+  cancelled: 'neutral',
 };
 
 type StatusBadgeProps = {
   status: OrderStatus;
+  /** Shows "Cancellation requested" instead of the status while a request is open. */
+  order?: Pick<Order, 'cancelStatus' | 'status'>;
 };
 
-export function StatusBadge({ status }: StatusBadgeProps) {
-  return (
-    <View style={[styles.badge, { borderColor: statusColor[status] }]}>
-      <Text style={[styles.text, { color: statusColor[status] }]}>{status.replace(/_/g, ' ')}</Text>
-    </View>
-  );
+/** Status is always written out, never shown by colour alone. */
+export function StatusBadge({ status, order }: StatusBadgeProps) {
+  if (order?.cancelStatus === 'requested' && order.status !== 'cancelled' && order.status !== 'delivered') {
+    return <Badge label="Cancellation requested" tone="warning" />;
+  }
+  return <Badge label={STATUS_LABELS[status]} tone={statusTone[status]} />;
 }
-
-const styles = StyleSheet.create({
-  badge: {
-    alignSelf: 'flex-start',
-    borderRadius: radius.pill,
-    borderWidth: 1,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
-  },
-  text: {
-    ...typography.caption,
-    fontWeight: '600',
-    textTransform: 'capitalize',
-  },
-});

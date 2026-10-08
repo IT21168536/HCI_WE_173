@@ -5,6 +5,7 @@ export type User = {
   fullName: string;
   email: string;
   mobile?: string | null;
+  address?: string | null;
   passwordHash: string;
   role: UserRole;
   profileImage?: string | null;

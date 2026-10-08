@@ -5,5 +5,5 @@ export type CartItem = {
   customerId: number;
   mealId: number;
   quantity: number;
-  meal?: Meal;
+  meal: Meal;
 };

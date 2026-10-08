@@ -5,6 +5,7 @@ export const schemaStatements = [
     full_name TEXT NOT NULL,
     email TEXT NOT NULL UNIQUE,
     mobile TEXT,
+    address TEXT,
     password_hash TEXT NOT NULL,
     role TEXT NOT NULL CHECK(role IN ('customer','cook','rider')),
     profile_image TEXT,
@@ -18,7 +19,30 @@ export const schemaStatements = [
     description TEXT,
     hygiene_info TEXT,
     verification_status TEXT DEFAULT 'unverified',
+    is_open INTEGER NOT NULL DEFAULT 1,
     FOREIGN KEY (user_id) REFERENCES users(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS rider_profiles (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    vehicle_type TEXT NOT NULL CHECK(vehicle_type IN ('bicycle','motorcycle','scooter','car','van')),
+    vehicle_number TEXT,
+    license_number TEXT,
+    emergency_contact TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+    FOREIGN KEY (user_id) REFERENCES users(id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS rider_schedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    rider_id INTEGER NOT NULL,
+    day_of_week INTEGER NOT NULL CHECK(day_of_week BETWEEN 0 AND 6),
+    start_time TEXT NOT NULL,
+    end_time TEXT NOT NULL,
+    is_available INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT,
+    FOREIGN KEY (rider_id) REFERENCES users(id)
   )`,
   `CREATE TABLE IF NOT EXISTS meals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,6 +56,7 @@ export const schemaStatements = [
     image_path TEXT,
     available_quantity INTEGER NOT NULL DEFAULT 0,
     is_available INTEGER NOT NULL DEFAULT 1,
+    deleted_at TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT,
     FOREIGN KEY (cook_id) REFERENCES users(id)
@@ -53,14 +78,19 @@ export const schemaStatements = [
     delivery_type TEXT NOT NULL,
     delivery_address TEXT,
     scheduled_time TEXT,
+    customer_note TEXT,
     subtotal REAL NOT NULL,
     delivery_fee REAL NOT NULL DEFAULT 0,
     total REAL NOT NULL,
     payment_method TEXT,
     payment_status TEXT NOT NULL DEFAULT 'pending',
     status TEXT NOT NULL DEFAULT 'requested',
+    cancel_status TEXT,
+    cancel_reason TEXT,
     created_at TEXT NOT NULL,
     updated_at TEXT,
+    delivered_at TEXT,
+    rider_deleted_at TEXT,
     FOREIGN KEY (customer_id) REFERENCES users(id),
     FOREIGN KEY (cook_id) REFERENCES users(id),
     FOREIGN KEY (rider_id) REFERENCES users(id)
@@ -98,4 +128,25 @@ export const schemaStatements = [
     FOREIGN KEY (cook_id) REFERENCES users(id),
     FOREIGN KEY (meal_id) REFERENCES meals(id)
   )`,
+  `CREATE INDEX IF NOT EXISTS idx_meals_cook ON meals(cook_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_customer ON orders(customer_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_cook ON orders(cook_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_orders_status ON orders(status)`,
+  `CREATE INDEX IF NOT EXISTS idx_rider_schedules_rider ON rider_schedules(rider_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_order_items_order ON order_items(order_id)`,
+];
+
+/**
+ * Columns added after the first prototype. They are already in the CREATE TABLE
+ * statements above; this list upgrades databases created by older builds.
+ */
+export const columnMigrations: { table: string; column: string; definition: string }[] = [
+  { table: 'users', column: 'address', definition: 'TEXT' },
+  { table: 'cook_profiles', column: 'is_open', definition: 'INTEGER NOT NULL DEFAULT 1' },
+  { table: 'meals', column: 'deleted_at', definition: 'TEXT' },
+  { table: 'orders', column: 'customer_note', definition: 'TEXT' },
+  { table: 'orders', column: 'cancel_status', definition: 'TEXT' },
+  { table: 'orders', column: 'cancel_reason', definition: 'TEXT' },
+  { table: 'orders', column: 'delivered_at', definition: 'TEXT' },
+  { table: 'orders', column: 'rider_deleted_at', definition: 'TEXT' },
 ];

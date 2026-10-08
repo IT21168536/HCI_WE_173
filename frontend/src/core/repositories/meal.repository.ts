@@ -2,41 +2,90 @@ import { getDatabase } from '@/core/database/database';
 import type { Meal } from '@/shared/types/Meal';
 import { mapMeal } from './mappers';
 
-type CreateMealInput = {
-  cookId: number;
+export type MealInput = {
   name: string;
-  description?: string;
+  description?: string | null;
   price: number;
-  category?: string;
-  ingredients?: string;
-  allergens?: string;
-  imagePath?: string;
+  category?: string | null;
+  ingredients?: string | null;
+  allergens?: string | null;
+  imagePath?: string | null;
   availableQuantity: number;
+  isAvailable: boolean;
+};
+
+export type MealFilters = {
+  query?: string;
+  category?: string | null;
+  maxPrice?: number | null;
+  location?: string | null;
+  sort?: 'newest' | 'price_low' | 'price_high' | 'rating';
 };
 
 const mealSelect = `
-  SELECT meals.*, cook_profiles.business_name as cook_name, cook_profiles.location as cook_location
+  SELECT meals.*, cook_profiles.business_name as cook_name, cook_profiles.location as cook_location,
+    (SELECT AVG(rating) FROM reviews WHERE reviews.cook_id = meals.cook_id) as average_rating,
+    (SELECT COUNT(*) FROM reviews WHERE reviews.cook_id = meals.cook_id) as review_count
   FROM meals
   LEFT JOIN cook_profiles ON cook_profiles.user_id = meals.cook_id
 `;
 
-export async function listAvailableMeals(query = ''): Promise<Meal[]> {
+const sortSql: Record<NonNullable<MealFilters['sort']>, string> = {
+  newest: 'meals.created_at DESC',
+  price_low: 'meals.price ASC',
+  price_high: 'meals.price DESC',
+  rating: 'average_rating DESC NULLS LAST, meals.created_at DESC',
+};
+
+/** Meals customers can order right now: not deleted, in stock and from an open kitchen. */
+export async function listAvailableMeals(filters: MealFilters = {}): Promise<Meal[]> {
   const db = await getDatabase();
-  const search = `%${query.trim()}%`;
+  const where = [
+    'meals.deleted_at IS NULL',
+    'meals.is_available = 1',
+    'meals.available_quantity > 0',
+    'COALESCE(cook_profiles.is_open, 1) = 1',
+  ];
+  const params: (string | number)[] = [];
+
+  const query = filters.query?.trim();
+  if (query) {
+    const like = `%${query}%`;
+    where.push('(meals.name LIKE ? OR meals.category LIKE ? OR meals.ingredients LIKE ? OR cook_profiles.business_name LIKE ?)');
+    params.push(like, like, like, like);
+  }
+  if (filters.category) {
+    where.push('meals.category = ?');
+    params.push(filters.category);
+  }
+  if (filters.maxPrice) {
+    where.push('meals.price <= ?');
+    params.push(filters.maxPrice);
+  }
+  if (filters.location?.trim()) {
+    where.push('cook_profiles.location LIKE ?');
+    params.push(`%${filters.location.trim()}%`);
+  }
+
   const rows = await db.getAllAsync(
-    `${mealSelect}
-     WHERE meals.is_available = 1
-       AND meals.available_quantity > 0
-       AND (? = '%%' OR meals.name LIKE ? OR meals.category LIKE ? OR cook_profiles.business_name LIKE ?)
-     ORDER BY meals.created_at DESC`,
-    [search, search, search, search],
+    `${mealSelect} WHERE ${where.join(' AND ')} ORDER BY ${sortSql[filters.sort ?? 'newest']}`,
+    params,
   );
   return rows.map(mapMeal);
 }
 
-export async function listMealsByCook(cookId: number): Promise<Meal[]> {
+export async function listMealsByCook(cookId: number, options: { onlyOrderable?: boolean } = {}): Promise<Meal[]> {
   const db = await getDatabase();
-  const rows = await db.getAllAsync(`${mealSelect} WHERE meals.cook_id = ? ORDER BY meals.created_at DESC`, [cookId]);
+  const startOfToday = new Date(new Date().setHours(0, 0, 0, 0)).toISOString();
+  const orderable = options.onlyOrderable ? 'AND meals.is_available = 1 AND meals.available_quantity > 0' : '';
+  const rows = await db.getAllAsync(
+    `SELECT base.*,
+       (SELECT COALESCE(SUM(order_items.quantity), 0) FROM order_items JOIN orders ON orders.id = order_items.order_id
+        WHERE order_items.meal_id = base.id AND orders.status != 'cancelled' AND orders.created_at >= ?) as sold_today
+     FROM (${mealSelect} WHERE meals.cook_id = ? AND meals.deleted_at IS NULL ${orderable}) base
+     ORDER BY base.is_available DESC, base.name`,
+    [startOfToday, cookId],
+  );
   return rows.map(mapMeal);
 }
 
@@ -46,36 +95,82 @@ export async function getMealById(id: number): Promise<Meal | null> {
   return row ? mapMeal(row) : null;
 }
 
-export async function createMeal(input: CreateMealInput): Promise<number> {
+export async function listMealCategories(): Promise<string[]> {
+  const db = await getDatabase();
+  const rows = await db.getAllAsync<{ category: string }>(
+    `SELECT DISTINCT category FROM meals WHERE category IS NOT NULL AND deleted_at IS NULL ORDER BY category`,
+  );
+  return rows.map((row) => row.category);
+}
+
+export async function createMeal(cookId: number, input: MealInput): Promise<number> {
   const db = await getDatabase();
   const now = new Date().toISOString();
   const result = await db.runAsync(
     `INSERT INTO meals
-      (cook_id, name, description, price, category, ingredients, allergens, image_path, available_quantity, is_available, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (cook_id, name, description, price, category, ingredients, allergens, image_path, available_quantity, is_available, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
-      input.cookId,
-      input.name,
-      input.description ?? null,
+      cookId,
+      input.name.trim(),
+      input.description?.trim() || null,
       input.price,
-      input.category ?? null,
-      input.ingredients ?? null,
-      input.allergens ?? null,
+      input.category || null,
+      input.ingredients?.trim() || null,
+      input.allergens?.trim() || null,
       input.imagePath ?? null,
       input.availableQuantity,
-      input.availableQuantity > 0 ? 1 : 0,
+      input.isAvailable && input.availableQuantity > 0 ? 1 : 0,
+      now,
       now,
     ],
   );
   return result.lastInsertRowId;
 }
 
+export async function updateMeal(mealId: number, input: MealInput) {
+  const db = await getDatabase();
+  await db.runAsync(
+    `UPDATE meals SET name = ?, description = ?, price = ?, category = ?, ingredients = ?, allergens = ?, image_path = ?,
+       available_quantity = ?, is_available = ?, updated_at = ?
+     WHERE id = ?`,
+    [
+      input.name.trim(),
+      input.description?.trim() || null,
+      input.price,
+      input.category || null,
+      input.ingredients?.trim() || null,
+      input.allergens?.trim() || null,
+      input.imagePath ?? null,
+      input.availableQuantity,
+      input.isAvailable && input.availableQuantity > 0 ? 1 : 0,
+      new Date().toISOString(),
+      mealId,
+    ],
+  );
+}
+
 export async function setMealAvailability(mealId: number, availableQuantity: number, isAvailable: boolean) {
   const db = await getDatabase();
+  const quantity = Math.max(0, Math.floor(availableQuantity));
   await db.runAsync('UPDATE meals SET available_quantity = ?, is_available = ?, updated_at = ? WHERE id = ?', [
-    availableQuantity,
-    isAvailable ? 1 : 0,
+    quantity,
+    isAvailable && quantity > 0 ? 1 : 0,
     new Date().toISOString(),
     mealId,
   ]);
+}
+
+/**
+ * Meals are soft-deleted so past orders keep their history.
+ * The meal also leaves every customer's cart and favourites.
+ */
+export async function deleteMeal(mealId: number) {
+  const db = await getDatabase();
+  await db.withTransactionAsync(async () => {
+    const now = new Date().toISOString();
+    await db.runAsync('UPDATE meals SET deleted_at = ?, is_available = 0, updated_at = ? WHERE id = ?', [now, now, mealId]);
+    await db.runAsync('DELETE FROM cart_items WHERE meal_id = ?', [mealId]);
+    await db.runAsync('DELETE FROM favorites WHERE meal_id = ?', [mealId]);
+  });
 }

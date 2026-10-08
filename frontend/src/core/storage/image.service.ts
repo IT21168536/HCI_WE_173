@@ -11,7 +11,7 @@ export async function pickAndStoreImage(folder: 'profiles' | 'meals') {
 
   const result = await ImagePicker.launchImageLibraryAsync({
     allowsEditing: true,
-    mediaTypes: ImagePicker.MediaTypeOptions.Images,
+    mediaTypes: ['images'],
     quality: 0.8,
   });
 

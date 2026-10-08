@@ -3,6 +3,7 @@
 ## Shared Authentication
 
 ```text
+Login / Register (role) / Forgot Password
 App Start
   ↓
 Session Check
@@ -14,6 +15,7 @@ Session Check
 
 ```text
 Customer Home
+ ├── Cart badge → Cart
  ├── Search / Filter
  ├── Meal Details
  │    └── Cook Profile
@@ -23,9 +25,11 @@ Customer Home
  ├── Orders
  │    ├── Ongoing
  │    ├── Completed
- │    └── Cancelled
+ │    ├── Cancelled
+ │    └── Order tracking / cancel
  ├── Review
  └── Profile
+      └── Edit Profile
 ```
 
 Customer bottom navigation:
@@ -38,12 +42,21 @@ Home | Orders | Favorite | Profile
 
 ```text
 Cook Dashboard
+ ├── Notifications
+ ├── Sales Overview
  ├── Meals
  │    ├── Add Meal
- │    └── Edit Meal
- ├── Orders
- │    └── Order Details
+ │    ├── Edit Meal
+ │    │    └── Delete Meal
+ │    └── Availability
+ ├── Orders (New / Preparing / Ready)
+ │    ├── Order Details
+ │    ├── Cancellation request
+ │    ├── Scheduled Orders
+ │    └── Order History
  └── Profile
+      ├── Edit Profile & Kitchen
+      └── Reviews & Ratings
 ```
 
 Cook bottom navigation:
@@ -56,11 +69,13 @@ Dashboard | Meals | Orders | Profile
 
 ```text
 Rider Dashboard
+ ├── Ready deliveries (accept)
  ├── Delivery Details
  ├── Current Delivery
  ├── Complete Delivery
  ├── History
  └── Profile
+      └── Edit Profile
 ```
 
 Rider bottom navigation:

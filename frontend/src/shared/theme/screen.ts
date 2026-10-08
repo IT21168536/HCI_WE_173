@@ -8,8 +8,19 @@ export const screenStyles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    gap: spacing.lg,
+    gap: spacing.md,
     padding: spacing.lg,
-    paddingTop: spacing.xxl,
+    paddingBottom: spacing.xxl,
+  },
+  row: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  between: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
   },
 });
