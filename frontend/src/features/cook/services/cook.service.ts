@@ -11,8 +11,9 @@ export {
   updateMeal,
   deleteMeal,
   setMealAvailability,
+  validateMealInput,
 } from '@/core/repositories/meal.repository';
-export type { MealInput } from '@/core/repositories/meal.repository';
+export type { MealInput, MealErrors } from '@/core/repositories/meal.repository';
 export {
   getCookProfile,
   upsertCookProfile,

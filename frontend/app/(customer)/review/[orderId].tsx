@@ -28,6 +28,7 @@ export default function ReviewOrderScreen() {
   const [comment, setComment] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [commentError, setCommentError] = useState<string | undefined>();
 
   const { data, loading, error, reload } = useFocusData(
     async () => {
@@ -58,10 +59,15 @@ export default function ReviewOrderScreen() {
       setFormError('Tap the stars to choose a rating.');
       return;
     }
+    const text = [tags.join(', '), comment.trim()].filter(Boolean).join('. ');
+    if (text.length > 500) {
+      setCommentError('Your review, including selected tags, must be 500 characters or fewer.');
+      setFormError('Please shorten your review.');
+      return;
+    }
     try {
       setSaving(true);
       setFormError(null);
-      const text = [tags.join(', '), comment.trim()].filter(Boolean).join('. ');
       await createReview({ orderId: order.id, customerId: user.id, rating, comment: text });
       Alert.alert('Thanks for your review!', 'It helps neighbours choose trusted home cooks.');
       router.back();
@@ -117,7 +123,7 @@ export default function ReviewOrderScreen() {
               />
             ))}
           </ChipRow>
-          <AppInput label="Tell other customers more (optional)" value={comment} onChangeText={setComment} multiline placeholder="Taste, portion size, packaging..." />
+          <AppInput label="Tell other customers more (optional)" value={comment} onChangeText={(value) => { setComment(value); setCommentError(undefined); }} multiline placeholder="Taste, portion size, packaging..." maxLength={400} error={commentError} />
         </>
       )}
     </Screen>

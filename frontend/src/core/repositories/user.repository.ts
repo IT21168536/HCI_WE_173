@@ -1,5 +1,6 @@
 import { getDatabase } from '@/core/database/database';
 import type { User, UserRole } from '@/shared/types/User';
+import { isAddress, isEmail, isPersonName, isTenDigitPhone } from '@/shared/utils/validators';
 import { mapUser } from './mappers';
 
 type CreateUserInput = {
@@ -31,6 +32,12 @@ export async function findUserById(id: number): Promise<User | null> {
 }
 
 export async function createUser(input: CreateUserInput): Promise<User> {
+  if (!isPersonName(input.fullName)) throw new Error('Enter a valid name (2–60 characters, no numbers).');
+  if (!isEmail(input.email)) throw new Error('Enter a valid email address.');
+  if (!isTenDigitPhone(input.mobile ?? '')) throw new Error('Enter exactly 10 digits for the phone number.');
+  if ((input.role === 'customer' || input.role === 'cook') && !isAddress(input.address ?? '')) {
+    throw new Error('Enter a complete address (5–120 characters).');
+  }
   const db = await getDatabase();
   const createdAt = new Date().toISOString();
 
@@ -56,6 +63,9 @@ export async function createUser(input: CreateUserInput): Promise<User> {
 }
 
 export async function updateUser(id: number, input: UpdateUserInput): Promise<User> {
+  if (!isPersonName(input.fullName)) throw new Error('Enter a valid name (2–60 characters, no numbers).');
+  if (!isTenDigitPhone(input.mobile ?? '')) throw new Error('Enter exactly 10 digits for the phone number.');
+  if (input.address != null && !isAddress(input.address)) throw new Error('Enter a complete address (5–120 characters).');
   const db = await getDatabase();
   await db.runAsync('UPDATE users SET full_name = ?, mobile = ?, address = ?, profile_image = COALESCE(?, profile_image) WHERE id = ?', [
     input.fullName.trim(),

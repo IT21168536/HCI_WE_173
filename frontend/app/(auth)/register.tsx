@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { router } from 'expo-router';
-import { homeRouteFor, register } from '@/core/auth/auth.service';
+import { homeRouteFor, register, validateRegistration, type RegisterErrors } from '@/core/auth/auth.service';
 import { useSession } from '@/core/auth/SessionContext';
 import { AppButton } from '@/shared/components/AppButton';
 import { AppInput } from '@/shared/components/AppInput';
@@ -38,6 +38,7 @@ export default function RegisterScreen() {
   const [password, setPassword] = useState('');
   const [agreed, setAgreed] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<RegisterErrors>({});
   const [loading, setLoading] = useState(false);
 
   async function handleRegister() {
@@ -45,18 +46,25 @@ export default function RegisterScreen() {
       setError(role === 'cook' ? 'Please agree to the Terms and Food Safety Policy.' : 'Please agree to the Terms of Use.');
       return;
     }
+    const input = {
+      fullName,
+      email,
+      mobile,
+      address: role === 'customer' || role === 'cook' ? address : undefined,
+      password,
+      role,
+      kitchen: role === 'cook' ? { businessName: kitchenName, location: kitchenLocation } : undefined,
+    };
+    const nextErrors = validateRegistration(input);
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError('Please fix the highlighted fields.');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
-      const user = await register({
-        fullName,
-        email,
-        mobile,
-        address: role === 'customer' || role === 'cook' ? address : undefined,
-        password,
-        role,
-        kitchen: role === 'cook' ? { businessName: kitchenName, location: kitchenLocation } : undefined,
-      });
+      const user = await register(input);
       setUser(user);
       router.replace(homeRouteFor(user.role));
     } catch (err) {
@@ -85,46 +93,52 @@ export default function RegisterScreen() {
       }
     >
       <Text style={styles.label}>I want to join as</Text>
-      <Segmented options={roleOptions} value={role} onChange={setRole} />
+      <Segmented options={roleOptions} value={role} onChange={(value) => { setRole(value); setFieldErrors({}); setError(null); }} />
       <Text style={styles.intro}>{roleIntro[role]}</Text>
 
-      <AppInput label="Full name" icon="person-outline" value={fullName} onChangeText={setFullName} placeholder="e.g. Nadeesha Perera" autoComplete="name" />
+      <AppInput label="Full name" icon="person-outline" value={fullName} onChangeText={(value) => { setFullName(value); setFieldErrors((current) => ({ ...current, fullName: undefined })); }} placeholder="e.g. Nadeesha Perera" autoComplete="name" maxLength={60} error={fieldErrors.fullName} />
       {role === 'cook' ? (
         <>
-          <AppInput label="Kitchen name" icon="storefront-outline" value={kitchenName} onChangeText={setKitchenName} placeholder="e.g. Nadeesha Kitchen" />
-          <AppInput label="Kitchen area" icon="location-outline" value={kitchenLocation} onChangeText={setKitchenLocation} placeholder="e.g. Malabe" />
+          <AppInput label="Kitchen name" icon="storefront-outline" value={kitchenName} onChangeText={(value) => { setKitchenName(value); setFieldErrors((current) => ({ ...current, kitchenName: undefined })); }} placeholder="e.g. Nadeesha Kitchen" maxLength={60} error={fieldErrors.kitchenName} />
+          <AppInput label="Kitchen area" icon="location-outline" value={kitchenLocation} onChangeText={(value) => { setKitchenLocation(value); setFieldErrors((current) => ({ ...current, kitchenLocation: undefined })); }} placeholder="e.g. Malabe" maxLength={60} error={fieldErrors.kitchenLocation} />
         </>
       ) : null}
       <AppInput
         label="Phone number"
         icon="call-outline"
         value={mobile}
-        onChangeText={setMobile}
-        placeholder="077 123 4567"
+        onChangeText={(value) => { setMobile(value.replace(/\D/g, '').slice(0, 10)); setFieldErrors((current) => ({ ...current, mobile: undefined })); }}
+        placeholder="0771234567"
         keyboardType="phone-pad"
         autoComplete="tel"
+        maxLength={10}
+        error={fieldErrors.mobile}
       />
       <AppInput
         label="Email address"
         icon="mail-outline"
         value={email}
-        onChangeText={setEmail}
+        onChangeText={(value) => { setEmail(value); setFieldErrors((current) => ({ ...current, email: undefined })); }}
         placeholder="you@example.com"
         autoCapitalize="none"
         keyboardType="email-address"
         autoComplete="email"
+        maxLength={254}
+        error={fieldErrors.email}
       />
       {role !== 'rider' ? (
         <AppInput
           label={role === 'cook' ? 'Kitchen address' : 'Delivery address'}
           icon="home-outline"
           value={address}
-          onChangeText={setAddress}
+          onChangeText={(value) => { setAddress(value); setFieldErrors((current) => ({ ...current, address: undefined })); }}
           placeholder="House no., street, town"
           autoComplete="street-address"
+          maxLength={120}
+          error={fieldErrors.address}
         />
       ) : null}
-      <AppInput label="Password" icon="lock-closed-outline" password value={password} onChangeText={setPassword} placeholder="At least 6 characters" hint="Use at least 6 characters." />
+      <AppInput label="Password" icon="lock-closed-outline" password value={password} onChangeText={(value) => { setPassword(value); setFieldErrors((current) => ({ ...current, password: undefined })); }} placeholder="At least 6 characters" hint="Use 6–64 characters with a letter and number." maxLength={64} error={fieldErrors.password} />
 
       <Pressable
         accessibilityRole="checkbox"

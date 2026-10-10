@@ -1,5 +1,6 @@
 import { getDatabase } from '@/core/database/database';
 import type { CookProfile } from '@/shared/types/CookProfile';
+import { isShortName, isTextWithin } from '@/shared/utils/validators';
 import { mapCookProfile } from './mappers';
 
 const cookSelect = `
@@ -30,6 +31,10 @@ export async function listCookProfiles(): Promise<CookProfile[]> {
 }
 
 export async function upsertCookProfile(userId: number, input: CookProfileInput, verificationStatus?: CookProfile['verificationStatus']) {
+  if (!isShortName(input.businessName)) throw new Error('Enter a kitchen name (2–60 characters).');
+  if (!isShortName(input.location ?? '')) throw new Error('Enter an area (2–60 characters).');
+  if (!isTextWithin(input.description, 300)) throw new Error('Kitchen description must be 300 characters or fewer.');
+  if (!isTextWithin(input.hygieneInfo, 300)) throw new Error('Food safety details must be 300 characters or fewer.');
   const db = await getDatabase();
   await db.runAsync(
     `INSERT INTO cook_profiles (user_id, business_name, location, description, hygiene_info, verification_status, is_open)

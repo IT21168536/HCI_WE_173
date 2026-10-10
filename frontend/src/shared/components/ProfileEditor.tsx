@@ -9,7 +9,7 @@ import { colors } from '@/shared/theme/colors';
 import { spacing } from '@/shared/theme/spacing';
 import { typography } from '@/shared/theme/typography';
 import { errorMessage, showError } from '@/shared/utils/alerts';
-import { isPhone } from '@/shared/utils/validators';
+import { isAddress, isPersonName, isShortName, isTenDigitPhone, isTextWithin } from '@/shared/utils/validators';
 import { AppButton } from './AppButton';
 import { AppInput } from './AppInput';
 import { Avatar } from './Avatar';
@@ -23,6 +23,8 @@ type ProfileEditorProps = {
   kitchen?: boolean;
   variant?: 'brand' | 'dark';
 };
+
+type ProfileErrors = Partial<Record<'fullName' | 'mobile' | 'address' | 'businessName' | 'location' | 'description' | 'hygieneInfo', string>>;
 
 /** Shared "Edit Profile" screen body used by all three roles. */
 export function ProfileEditor({ showAddress = false, kitchen = false, variant = 'dark' }: ProfileEditorProps) {
@@ -38,6 +40,7 @@ export function ProfileEditor({ showAddress = false, kitchen = false, variant = 
   const [hygieneInfo, setHygieneInfo] = useState('');
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [errors, setErrors] = useState<ProfileErrors>({});
 
   const [loading, setLoading] = useState(kitchen);
 
@@ -69,16 +72,17 @@ export function ProfileEditor({ showAddress = false, kitchen = false, variant = 
   }
 
   async function onSave() {
-    if (!fullName.trim()) {
-      setFormError('Enter your full name.');
-      return;
-    }
-    if (mobile && !isPhone(mobile)) {
-      setFormError('Enter a valid phone number, for example 077 123 4567.');
-      return;
-    }
-    if (kitchen && !businessName.trim()) {
-      setFormError('Enter your kitchen name.');
+    const nextErrors: ProfileErrors = {};
+    if (!isPersonName(fullName)) nextErrors.fullName = 'Enter a valid name (2–60 characters, no numbers).';
+    if (!isTenDigitPhone(mobile)) nextErrors.mobile = 'Enter exactly 10 digits, for example 0771234567.';
+    if (showAddress && !isAddress(address)) nextErrors.address = 'Enter a complete address (5–120 characters).';
+    if (kitchen && !isShortName(businessName)) nextErrors.businessName = 'Enter a kitchen name (2–60 characters).';
+    if (kitchen && !isShortName(location)) nextErrors.location = 'Enter an area (2–60 characters).';
+    if (!isTextWithin(description, 300)) nextErrors.description = 'Use 300 characters or fewer.';
+    if (!isTextWithin(hygieneInfo, 300)) nextErrors.hygieneInfo = 'Use 300 characters or fewer.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setFormError('Please fix the highlighted fields.');
       return;
     }
     try {
@@ -129,18 +133,18 @@ export function ProfileEditor({ showAddress = false, kitchen = false, variant = 
         </Pressable>
       </View>
 
-      <AppInput label="Full name" icon="person-outline" value={fullName} onChangeText={setFullName} />
-      {kitchen ? <AppInput label="Kitchen name" icon="storefront-outline" value={businessName} onChangeText={setBusinessName} /> : null}
-      <AppInput label="Phone number" icon="call-outline" value={mobile} onChangeText={setMobile} keyboardType="phone-pad" />
+      <AppInput label="Full name" icon="person-outline" value={fullName} onChangeText={(value) => { setFullName(value); setErrors((current) => ({ ...current, fullName: undefined })); }} maxLength={60} error={errors.fullName} />
+      {kitchen ? <AppInput label="Kitchen name" icon="storefront-outline" value={businessName} onChangeText={(value) => { setBusinessName(value); setErrors((current) => ({ ...current, businessName: undefined })); }} maxLength={60} error={errors.businessName} /> : null}
+      <AppInput label="Phone number" icon="call-outline" value={mobile} onChangeText={(value) => { setMobile(value.replace(/\D/g, '').slice(0, 10)); setErrors((current) => ({ ...current, mobile: undefined })); }} keyboardType="phone-pad" maxLength={10} error={errors.mobile} />
       <AppInput label="Email address" icon="mail-outline" value={user.email} editable={false} hint="Your email is your login and can't be changed here." />
       {showAddress ? (
-        <AppInput label={kitchen ? 'Kitchen address' : 'Delivery address'} icon="location-outline" value={address} onChangeText={setAddress} placeholder="House no., street, town" />
+        <AppInput label={kitchen ? 'Kitchen address' : 'Delivery address'} icon="location-outline" value={address} onChangeText={(value) => { setAddress(value); setErrors((current) => ({ ...current, address: undefined })); }} placeholder="House no., street, town" maxLength={120} error={errors.address} />
       ) : null}
       {kitchen ? (
         <>
-          <AppInput label="Area shown to customers" icon="map-outline" value={location} onChangeText={setLocation} placeholder="e.g. Malabe" />
-          <AppInput label="About your kitchen" value={description} onChangeText={setDescription} multiline placeholder="What do you cook? What makes it special?" />
-          <AppInput label="Hygiene & food safety" value={hygieneInfo} onChangeText={setHygieneInfo} multiline placeholder="e.g. Fresh produce daily, sealed packaging" />
+          <AppInput label="Area shown to customers" icon="map-outline" value={location} onChangeText={(value) => { setLocation(value); setErrors((current) => ({ ...current, location: undefined })); }} placeholder="e.g. Malabe" maxLength={60} error={errors.location} />
+          <AppInput label="About your kitchen" value={description} onChangeText={(value) => { setDescription(value); setErrors((current) => ({ ...current, description: undefined })); }} multiline placeholder="What do you cook? What makes it special?" maxLength={300} error={errors.description} />
+          <AppInput label="Hygiene & food safety" value={hygieneInfo} onChangeText={(value) => { setHygieneInfo(value); setErrors((current) => ({ ...current, hygieneInfo: undefined })); }} multiline placeholder="e.g. Fresh produce daily, sealed packaging" maxLength={300} error={errors.hygieneInfo} />
         </>
       ) : null}
     </Screen>

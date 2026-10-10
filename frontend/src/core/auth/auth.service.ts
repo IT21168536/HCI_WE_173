@@ -2,7 +2,7 @@ import * as Crypto from 'expo-crypto';
 import type { User, UserRole } from '@/shared/types/User';
 import { createUser, findUserByEmail, updatePasswordHash } from '@/core/repositories/user.repository';
 import { upsertCookProfile } from '@/core/repositories/cook.repository';
-import { isEmail, isPhone } from '@/shared/utils/validators';
+import { isAddress, isEmail, isPassword, isPersonName, isShortName, isTenDigitPhone } from '@/shared/utils/validators';
 import { clearSession, saveSession } from './session.service';
 
 /** Demo accounts are seeded with this marker instead of a hash. */
@@ -21,6 +21,24 @@ export type RegisterInput = {
     description?: string;
   };
 };
+
+export type RegisterErrors = Partial<Record<'fullName' | 'email' | 'mobile' | 'address' | 'password' | 'kitchenName' | 'kitchenLocation', string>>;
+
+export function validateRegistration(input: RegisterInput): RegisterErrors {
+  const errors: RegisterErrors = {};
+  if (!isPersonName(input.fullName)) errors.fullName = 'Enter a valid name (2–60 characters, no numbers).';
+  if (!isEmail(input.email)) errors.email = 'Enter a valid email address.';
+  if (!isTenDigitPhone(input.mobile ?? '')) errors.mobile = 'Enter exactly 10 digits, for example 0771234567.';
+  if ((input.role === 'customer' || input.role === 'cook') && !isAddress(input.address ?? '')) {
+    errors.address = 'Enter a complete address (5–120 characters).';
+  }
+  if (!isPassword(input.password)) errors.password = 'Use 6–64 characters with at least one letter and one number.';
+  if (input.role === 'cook') {
+    if (!isShortName(input.kitchen?.businessName ?? '')) errors.kitchenName = 'Enter a kitchen name (2–60 characters).';
+    if (!isShortName(input.kitchen?.location ?? '')) errors.kitchenLocation = 'Enter an area (2–60 characters).';
+  }
+  return errors;
+}
 
 async function hashPassword(password: string) {
   const digest = await Crypto.digestStringAsync(Crypto.CryptoDigestAlgorithm.SHA256, `worky-kitchen:${password}`);
@@ -49,21 +67,9 @@ export async function login(email: string, password: string): Promise<User> {
 }
 
 export async function register(input: RegisterInput): Promise<User> {
-  if (!input.fullName.trim()) {
-    throw new Error('Enter your full name.');
-  }
-  if (!isEmail(input.email)) {
-    throw new Error('Enter a valid email address.');
-  }
-  if (input.mobile && !isPhone(input.mobile)) {
-    throw new Error('Enter a valid phone number, for example 077 123 4567.');
-  }
-  if (input.password.length < 6) {
-    throw new Error('Use at least 6 characters for your password.');
-  }
-  if (input.role === 'cook' && !input.kitchen?.businessName.trim()) {
-    throw new Error('Enter your kitchen name.');
-  }
+  const errors = validateRegistration(input);
+  const firstError = Object.values(errors)[0];
+  if (firstError) throw new Error(firstError);
 
   const existing = await findUserByEmail(input.email);
   if (existing) {
@@ -89,9 +95,9 @@ export async function register(input: RegisterInput): Promise<User> {
 
 /** Local-only reset: there is no email server in the MVP, so the account is matched by email and phone. */
 export async function resetPassword(email: string, mobile: string, newPassword: string) {
-  if (newPassword.length < 6) {
-    throw new Error('Use at least 6 characters for your new password.');
-  }
+  if (!isEmail(email)) throw new Error('Enter a valid email address.');
+  if (!isTenDigitPhone(mobile)) throw new Error('Enter exactly 10 digits for the phone number.');
+  if (!isPassword(newPassword)) throw new Error('Use 6–64 characters with at least one letter and one number.');
   const user = await findUserByEmail(email);
   const digits = (value?: string | null) => (value ?? '').replace(/\D/g, '').slice(-9);
   if (!user || !user.mobile || digits(user.mobile) !== digits(mobile)) {

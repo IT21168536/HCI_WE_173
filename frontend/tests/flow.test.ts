@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { getDatabase } from '@/core/database/database';
 import { login, register, resetPassword } from '@/core/auth/auth.service';
-import { listAvailableMeals, listMealsByCook, getMealById, deleteMeal, setMealAvailability } from '@/core/repositories/meal.repository';
+import { listAvailableMeals, listMealsByCook, getMealById, deleteMeal, setMealAvailability, validateMealInput } from '@/core/repositories/meal.repository';
 import { addToCart, listCart, countCartItems } from '@/core/repositories/cart.repository';
 import { placeOrdersFromCart, updateOrderStatus, listAvailableDeliveries, claimDelivery, getOrderById, cancelOrderByCustomer, resolveCancellation, listOrdersForCook, listActiveDeliveriesForRider, getRiderStats, listRiderHistory, listOrderItems, deleteRiderHistoryEntry, listOrdersForCustomer } from '@/core/repositories/order.repository';
 import { createRiderSchedule, deleteRiderSchedule, getRiderProfile, listRiderSchedules, updateRiderSchedule, upsertRiderProfile } from '@/core/repositories/rider.repository';
 import { createRiderSchedule as createValidatedSchedule, saveRiderAccount, saveRiderProfile } from '@/features/rider/services/rider.service';
 import { createReview, getRatingSummary, listReviewsForCook } from '@/core/repositories/review.repository';
-import { getCookStats, getCookDailySales, getCookTopMeals, getCookSalesSince, getCookProfile } from '@/core/repositories/cook.repository';
+import { getCookStats, getCookDailySales, getCookTopMeals, getCookSalesSince, getCookProfile, upsertCookProfile } from '@/core/repositories/cook.repository';
+import { updateUser } from '@/core/repositories/user.repository';
 import { toggleFavorite, listFavoriteMeals } from '@/core/repositories/favorite.repository';
 
 let passed = 0;
@@ -36,13 +37,26 @@ async function rejects(p: Promise<unknown>, re: RegExp) { await assert.rejects(p
   });
 
   await step('register cook → pending kitchen; hashed password logs in', async () => {
-    const u = await register({ fullName: 'Test Cook', email: 'newcook@test.com', mobile: '0779998888', password: 'secret1', role: 'cook', kitchen: { businessName: 'Test Kitchen', location: 'Kandy' } });
+    const u = await register({ fullName: 'Test Cook', email: 'newcook@test.com', mobile: '0779998888', address: '15 Lake Road, Kandy', password: 'secret1', role: 'cook', kitchen: { businessName: 'Test Kitchen', location: 'Kandy' } });
     const profile = await getCookProfile(u.id);
     assert.equal(profile?.verificationStatus, 'pending');
     const stored = await db.getFirstAsync<{ password_hash: string }>('SELECT password_hash FROM users WHERE id = ?', [u.id]);
     assert.match(stored!.password_hash, /^sha256:/);
     assert.equal((await login('newcook@test.com', 'secret1')).id, u.id);
-    await rejects(register({ fullName: 'X', email: 'newcook@test.com', password: 'secret1', role: 'customer' }), /already exists/);
+    await rejects(register({ fullName: 'Test Customer', email: 'newcook@test.com', mobile: '0771112222', address: '20 Main Street, Kandy', password: 'secret1', role: 'customer' }), /already exists/);
+  });
+
+  await step('customer and cook registration reject invalid entered data', async () => {
+    await rejects(register({ fullName: 'Customer 7', email: 'bad', mobile: '07712', address: 'A', password: 'secret', role: 'customer' }), /valid name/);
+    await rejects(register({ fullName: 'Valid Customer', email: 'valid@test.com', mobile: '07712', address: '20 Main Street', password: 'secret1', role: 'customer' }), /exactly 10 digits/);
+    await rejects(register({ fullName: 'Valid Cook', email: 'cookvalid@test.com', mobile: '0771112222', address: '20 Main Street', password: 'secret1', role: 'cook', kitchen: { businessName: 'K', location: '' } }), /kitchen name/);
+  });
+
+  await step('customer profile and cook data reject invalid direct database writes', async () => {
+    await rejects(updateUser(CUSTOMER, { fullName: 'Customer 1', mobile: '07123', address: 'A' }), /valid name|exactly 10 digits|complete address/);
+    await rejects(upsertCookProfile(COOK, { businessName: 'K', location: '', description: 'x'.repeat(301) }), /kitchen name/);
+    const errors = validateMealInput({ name: 'X', category: 'Unknown', price: -1, availableQuantity: 2.5, description: 'Short', ingredients: '', allergens: 'x'.repeat(151), isAvailable: true });
+    assert.deepEqual(Object.keys(errors).sort(), ['allergens', 'category', 'description', 'ingredients', 'name', 'price', 'quantity']);
   });
 
   await step('reset password needs matching phone', async () => {

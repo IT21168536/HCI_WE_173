@@ -18,9 +18,10 @@ export async function createReview(input: CreateReviewInput) {
   if (order.status !== 'delivered') {
     throw new Error('You can review an order after it is delivered.');
   }
-  if (input.rating < 1 || input.rating > 5) {
+  if (!Number.isInteger(input.rating) || input.rating < 1 || input.rating > 5) {
     throw new Error('Choose a rating from 1 to 5 stars.');
   }
+  if ((input.comment?.trim().length ?? 0) > 500) throw new Error('Review must be 500 characters or fewer.');
 
   if (await getReviewForOrder(order.id)) {
     throw new Error('You have already reviewed this order.');
@@ -30,7 +31,7 @@ export async function createReview(input: CreateReviewInput) {
   const db = await getDatabase();
   await db.runAsync(
     'INSERT INTO reviews (order_id, customer_id, cook_id, meal_id, rating, comment, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    [order.id, input.customerId, order.cookId, firstItem?.mealId ?? null, Math.round(input.rating), input.comment?.trim() || null, new Date().toISOString()],
+    [order.id, input.customerId, order.cookId, firstItem?.mealId ?? null, input.rating, input.comment?.trim() || null, new Date().toISOString()],
   );
 }
 

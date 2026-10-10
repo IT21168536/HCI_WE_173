@@ -10,6 +10,9 @@ import { colors } from '@/shared/theme/colors';
 import { spacing } from '@/shared/theme/spacing';
 import { typography } from '@/shared/theme/typography';
 import { errorMessage } from '@/shared/utils/alerts';
+import { isEmail, isPassword, isTenDigitPhone } from '@/shared/utils/validators';
+
+type Errors = Partial<Record<'email' | 'mobile' | 'password', string>>;
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -17,8 +20,18 @@ export default function ForgotPasswordScreen() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errors, setErrors] = useState<Errors>({});
 
   async function handleReset() {
+    const nextErrors: Errors = {};
+    if (!isEmail(email)) nextErrors.email = 'Enter a valid email address.';
+    if (!isTenDigitPhone(mobile)) nextErrors.mobile = 'Enter exactly 10 digits, for example 0771234567.';
+    if (!isPassword(password)) nextErrors.password = 'Use 6–64 characters with at least one letter and one number.';
+    setErrors(nextErrors);
+    if (Object.keys(nextErrors).length > 0) {
+      setError('Please fix the highlighted fields.');
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -52,9 +65,9 @@ export default function ForgotPasswordScreen() {
         </Text>
         <Text style={styles.subtitle}>Confirm the email and phone number on your account, then choose a new password.</Text>
       </View>
-      <AppInput label="Email address" icon="mail-outline" value={email} onChangeText={setEmail} autoCapitalize="none" keyboardType="email-address" placeholder="you@example.com" />
-      <AppInput label="Phone number" icon="call-outline" value={mobile} onChangeText={setMobile} keyboardType="phone-pad" placeholder="077 123 4567" />
-      <AppInput label="New password" icon="lock-closed-outline" password value={password} onChangeText={setPassword} placeholder="At least 6 characters" />
+      <AppInput label="Email address" icon="mail-outline" value={email} onChangeText={(value) => { setEmail(value); setErrors((current) => ({ ...current, email: undefined })); }} autoCapitalize="none" keyboardType="email-address" placeholder="you@example.com" maxLength={254} error={errors.email} />
+      <AppInput label="Phone number" icon="call-outline" value={mobile} onChangeText={(value) => { setMobile(value.replace(/\D/g, '').slice(0, 10)); setErrors((current) => ({ ...current, mobile: undefined })); }} keyboardType="phone-pad" placeholder="0771234567" maxLength={10} error={errors.mobile} />
+      <AppInput label="New password" icon="lock-closed-outline" password value={password} onChangeText={(value) => { setPassword(value); setErrors((current) => ({ ...current, password: undefined })); }} placeholder="At least 6 characters" maxLength={64} error={errors.password} />
       <Notice text="This prototype stores accounts on this phone only, so the reset happens here instead of by email or SMS." />
     </Screen>
   );

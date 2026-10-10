@@ -18,6 +18,7 @@ import type { CartItem } from '@/shared/types/CartItem';
 import { DELIVERY_FEE, type DeliveryType, type PaymentMethod } from '@/shared/types/Order';
 import { errorMessage } from '@/shared/utils/alerts';
 import { formatCurrency } from '@/shared/utils/formatCurrency';
+import { isAddress } from '@/shared/utils/validators';
 
 const deliveryOptions: { value: DeliveryType; label: string }[] = [
   { value: 'delivery', label: 'Delivery' },
@@ -41,6 +42,8 @@ export default function CheckoutScreen() {
   const [note, setNote] = useState('');
   const [placing, setPlacing] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
+  const [addressError, setAddressError] = useState<string | undefined>();
+  const [noteError, setNoteError] = useState<string | undefined>();
 
   const kitchens = useMemo(() => {
     const map = new Map<number, { name: string; location: string; items: CartItem[] }>();
@@ -57,8 +60,12 @@ export default function CheckoutScreen() {
   const total = subtotal + deliveryTotal;
 
   async function onPlaceOrder() {
-    if (deliveryType === 'delivery' && !address.trim()) {
-      setFormError('Add a delivery address, or choose pickup.');
+    const nextAddressError = deliveryType === 'delivery' && !isAddress(address) ? 'Enter a complete address (5–120 characters).' : undefined;
+    const nextNoteError = note.trim().length > 200 ? 'Use 200 characters or fewer.' : undefined;
+    setAddressError(nextAddressError);
+    setNoteError(nextNoteError);
+    if (nextAddressError || nextNoteError) {
+      setFormError('Please fix the highlighted fields.');
       return;
     }
     try {
@@ -120,7 +127,7 @@ export default function CheckoutScreen() {
           <Text style={styles.label}>How do you want your meal?</Text>
           <Segmented options={deliveryOptions} value={deliveryType} onChange={setDeliveryType} />
           {deliveryType === 'delivery' ? (
-            <AppInput label="Delivery address" icon="location-outline" value={address} onChangeText={setAddress} placeholder="House no., street, town" />
+            <AppInput label="Delivery address" icon="location-outline" value={address} onChangeText={(value) => { setAddress(value); setAddressError(undefined); }} placeholder="House no., street, town" maxLength={120} error={addressError} />
           ) : (
             <Card tone="brand">
               <Text style={styles.cardTitle}>Collect from</Text>
@@ -151,7 +158,7 @@ export default function CheckoutScreen() {
               : 'Card payments are simulated in this prototype; your order is marked as paid.'}
           </Text>
 
-          <AppInput label="Note for the cook (optional)" value={note} onChangeText={setNote} placeholder="e.g. Less spicy, please" multiline />
+          <AppInput label="Note for the cook (optional)" value={note} onChangeText={(value) => { setNote(value); setNoteError(undefined); }} placeholder="e.g. Less spicy, please" multiline maxLength={200} error={noteError} />
 
           <Card>
             <Text style={styles.cardTitle}>Order summary</Text>

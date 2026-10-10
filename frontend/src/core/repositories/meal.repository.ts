@@ -1,5 +1,5 @@
 import { getDatabase } from '@/core/database/database';
-import type { Meal } from '@/shared/types/Meal';
+import { MEAL_CATEGORIES, type Meal } from '@/shared/types/Meal';
 import { mapMeal } from './mappers';
 
 export type MealInput = {
@@ -13,6 +13,28 @@ export type MealInput = {
   availableQuantity: number;
   isAvailable: boolean;
 };
+
+export type MealErrors = Partial<Record<'name' | 'category' | 'price' | 'quantity' | 'description' | 'ingredients' | 'allergens', string>>;
+
+export function validateMealInput(input: MealInput): MealErrors {
+  const errors: MealErrors = {};
+  const name = input.name.trim();
+  const description = input.description?.trim() ?? '';
+  const ingredients = input.ingredients?.trim() ?? '';
+  if (name.length < 3 || name.length > 60) errors.name = 'Use 3–60 characters for the meal name.';
+  if (!input.category || !MEAL_CATEGORIES.includes(input.category as (typeof MEAL_CATEGORIES)[number])) errors.category = 'Choose a valid category.';
+  if (!Number.isFinite(input.price) || input.price <= 0 || input.price > 100000) errors.price = 'Enter a price from Rs. 1 to Rs. 100,000.';
+  if (!Number.isInteger(input.availableQuantity) || input.availableQuantity < 0 || input.availableQuantity > 999) errors.quantity = 'Enter a whole number from 0 to 999.';
+  if (description.length < 10 || description.length > 300) errors.description = 'Use 10–300 characters for the description.';
+  if (ingredients.length < 3 || ingredients.length > 300) errors.ingredients = 'List the main ingredients (3–300 characters).';
+  if ((input.allergens?.trim().length ?? 0) > 150) errors.allergens = 'Use 150 characters or fewer.';
+  return errors;
+}
+
+function assertValidMeal(input: MealInput) {
+  const firstError = Object.values(validateMealInput(input))[0];
+  if (firstError) throw new Error(firstError);
+}
 
 export type MealFilters = {
   query?: string;
@@ -104,6 +126,7 @@ export async function listMealCategories(): Promise<string[]> {
 }
 
 export async function createMeal(cookId: number, input: MealInput): Promise<number> {
+  assertValidMeal(input);
   const db = await getDatabase();
   const now = new Date().toISOString();
   const result = await db.runAsync(
@@ -129,6 +152,7 @@ export async function createMeal(cookId: number, input: MealInput): Promise<numb
 }
 
 export async function updateMeal(mealId: number, input: MealInput) {
+  assertValidMeal(input);
   const db = await getDatabase();
   await db.runAsync(
     `UPDATE meals SET name = ?, description = ?, price = ?, category = ?, ingredients = ?, allergens = ?, image_path = ?,

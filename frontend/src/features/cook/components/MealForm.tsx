@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { pickAndStoreImage } from '@/core/storage/image.service';
-import type { MealInput } from '@/features/cook/services/cook.service';
+import { validateMealInput, type MealErrors, type MealInput } from '@/features/cook/services/cook.service';
 import { AppButton } from '@/shared/components/AppButton';
 import { AppInput } from '@/shared/components/AppInput';
 import { Icon } from '@/shared/components/Icon';
@@ -25,8 +25,6 @@ type MealFormProps = {
   onDelete?: () => void;
 };
 
-type Errors = Partial<Record<'name' | 'price' | 'quantity', string>>;
-
 export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: MealFormProps) {
   const [imagePath, setImagePath] = useState<string | null>(initial?.imagePath ?? null);
   const [name, setName] = useState(initial?.name ?? '');
@@ -37,7 +35,7 @@ export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: Me
   const [ingredients, setIngredients] = useState(initial?.ingredients ?? '');
   const [allergens, setAllergens] = useState(initial?.allergens ?? '');
   const [available, setAvailable] = useState(initial ? initial.isAvailable : true);
-  const [errors, setErrors] = useState<Errors>({});
+  const [errors, setErrors] = useState<MealErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
@@ -51,12 +49,20 @@ export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: Me
   }
 
   async function submit() {
-    const nextErrors: Errors = {};
     const priceValue = parsePositiveNumber(price);
     const quantityValue = parseWholeNumber(quantity || '0');
-    if (!name.trim()) nextErrors.name = 'Enter a meal name.';
-    if (priceValue === null) nextErrors.price = 'Enter a price above 0.';
-    if (quantityValue === null) nextErrors.quantity = 'Enter a whole number.';
+    const input: MealInput = {
+      name,
+      category,
+      price: priceValue ?? Number.NaN,
+      availableQuantity: quantityValue ?? Number.NaN,
+      description,
+      ingredients,
+      allergens,
+      imagePath,
+      isAvailable: available,
+    };
+    const nextErrors = validateMealInput(input);
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0 || priceValue === null || quantityValue === null) {
       setFormError('Please fix the highlighted fields.');
@@ -66,17 +72,7 @@ export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: Me
     try {
       setSaving(true);
       setFormError(null);
-      await onSubmit({
-        name,
-        category,
-        price: priceValue,
-        availableQuantity: quantityValue,
-        description,
-        ingredients,
-        allergens,
-        imagePath,
-        isAvailable: available,
-      });
+      await onSubmit(input);
     } catch (err) {
       setFormError(errorMessage(err));
     } finally {
@@ -118,7 +114,7 @@ export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: Me
         </Pressable>
       )}
 
-      <AppInput label="Meal name" value={name} onChangeText={setName} placeholder="e.g. Chicken Rice & Curry" error={errors.name} />
+      <AppInput label="Meal name" value={name} onChangeText={(value) => { setName(value); setErrors((current) => ({ ...current, name: undefined })); }} placeholder="e.g. Chicken Rice & Curry" maxLength={60} error={errors.name} />
 
       <View style={styles.group}>
         <Text style={styles.label}>Category</Text>
@@ -127,20 +123,21 @@ export function MealForm({ title, initial, submitLabel, onSubmit, onDelete }: Me
             <Chip key={item} label={item} selected={category === item} onPress={() => setCategory(item)} />
           ))}
         </ChipRow>
+        {errors.category ? <Text style={styles.error}>{errors.category}</Text> : null}
       </View>
 
       <View style={styles.row}>
         <View style={styles.flex}>
-          <AppInput label="Price (Rs)" icon="cash-outline" value={price} onChangeText={setPrice} keyboardType="decimal-pad" placeholder="0" error={errors.price} />
+          <AppInput label="Price (Rs)" icon="cash-outline" value={price} onChangeText={(value) => { setPrice(value.replace(/[^\d.]/g, '')); setErrors((current) => ({ ...current, price: undefined })); }} keyboardType="decimal-pad" placeholder="0" maxLength={9} error={errors.price} />
         </View>
         <View style={styles.flex}>
-          <AppInput label="Portions today" icon="restaurant-outline" value={quantity} onChangeText={setQuantity} keyboardType="number-pad" placeholder="0" error={errors.quantity} />
+          <AppInput label="Portions today" icon="restaurant-outline" value={quantity} onChangeText={(value) => { setQuantity(value.replace(/\D/g, '').slice(0, 3)); setErrors((current) => ({ ...current, quantity: undefined })); }} keyboardType="number-pad" placeholder="0" maxLength={3} error={errors.quantity} />
         </View>
       </View>
 
-      <AppInput label="Description" value={description} onChangeText={setDescription} multiline placeholder="What's in it, spice level, portion size" />
-      <AppInput label="Ingredients" value={ingredients} onChangeText={setIngredients} placeholder="Rice, chicken, dhal..." />
-      <AppInput label="Allergens" value={allergens} onChangeText={setAllergens} placeholder="e.g. Coconut, egg, gluten" hint="Customers see this before they order." />
+      <AppInput label="Description" value={description} onChangeText={(value) => { setDescription(value); setErrors((current) => ({ ...current, description: undefined })); }} multiline placeholder="What's in it, spice level, portion size" maxLength={300} error={errors.description} />
+      <AppInput label="Ingredients" value={ingredients} onChangeText={(value) => { setIngredients(value); setErrors((current) => ({ ...current, ingredients: undefined })); }} placeholder="Rice, chicken, dhal..." maxLength={300} error={errors.ingredients} />
+      <AppInput label="Allergens" value={allergens} onChangeText={(value) => { setAllergens(value); setErrors((current) => ({ ...current, allergens: undefined })); }} placeholder="e.g. Coconut, egg, gluten" hint="Customers see this before they order." maxLength={150} error={errors.allergens} />
 
       <ToggleRow
         title="Available for orders"

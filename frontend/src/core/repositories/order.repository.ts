@@ -3,6 +3,7 @@ import { getDatabase } from '@/core/database/database';
 import type { DeliveryType, Order, OrderStatus, PaymentMethod } from '@/shared/types/Order';
 import { DELIVERY_FEE } from '@/shared/types/Order';
 import type { OrderItem } from '@/shared/types/OrderItem';
+import { isAddress, isTextWithin } from '@/shared/utils/validators';
 import { mapOrder, mapOrderItem } from './mappers';
 
 const validTransitions: Record<OrderStatus, OrderStatus[]> = {
@@ -160,9 +161,10 @@ type CartRow = {
  * meal leaves the cart and the menu unchanged.
  */
 export async function placeOrdersFromCart(customerId: number, input: PlaceOrderInput): Promise<number[]> {
-  if (input.deliveryType === 'delivery' && !input.deliveryAddress?.trim()) {
-    throw new Error('Add a delivery address, or choose pickup.');
+  if (input.deliveryType === 'delivery' && !isAddress(input.deliveryAddress ?? '')) {
+    throw new Error('Enter a complete delivery address (5–120 characters), or choose pickup.');
   }
+  if (!isTextWithin(input.note, 200)) throw new Error('Order note must be 200 characters or fewer.');
 
   const db = await getDatabase();
   const orderIds: number[] = [];
